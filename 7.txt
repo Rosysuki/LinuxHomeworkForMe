@@ -1,0 +1,104 @@
+1、克隆一台虚拟机，并将两台虚拟机列为NAT模式。
+
+2、
+sudo apt update
+sudo apt install vsftpd -y
+
+对于服务端：
+3、创建用户与隔离目录
+1. 创建FTP根目录与用户目录
+sudo mkdir -p /home/ftp/{finance,sales,oa}
+
+2. 设置根目录权限（vsftpd要求根目录无写入权限，否则用户无法登录）
+sudo chmod 555 /home/ftp
+
+3. 创建FTP用户（禁止登录系统，仅用于FTP访问）
+#财务用户：ftp_finance
+sudo useradd -d /home/ftp/finance -s /usr/sbin/nologin ftp_finance
+sudo passwd ftp_finance  # 设置密码（如Finance@123）
+
+#销售用户：ftp_sales
+sudo useradd -d /home/ftp/sales -s /usr/sbin/nologin ftp_sales
+sudo passwd ftp_sales  # 设置密码（如Sales@123）
+
+#OA用户：ftp_oa
+sudo useradd -d /home/ftp/oa -s /usr/sbin/nologin ftp_oa
+sudo passwd ftp_oa  # 设置密码（如OA@123）
+
+4. 设置用户目录权限
+sudo chown ftp_finance:ftp_finance /home/ftp/finance
+sudo chmod 755 /home/ftp/finance
+sudo chown ftp_sales:ftp_sales /home/ftp/sales
+sudo chmod 755 /home/ftp/sales
+sudo chown ftp_oa:ftp_oa /home/ftp/oa
+sudo chmod 755 /home/ftp/oa
+# 设置FTP根目录权限（必须是555，否则vsftpd会拒绝chroot用户登录）
+sudo chmod 555 /home/ftp
+
+5、配置文件
+sudo nano /etc/vsftpd.conf
+输入：
+
+# 基础监听配置
+listen=YES
+listen_ipv6=NO
+# 匿名用户控制
+anonymous_enable=NO
+local_enable=YES
+# 文件上传权限
+write_enable=YES
+local_umask=022
+# 用户隔离核心配置
+chroot_local_user=YES
+allow_writeable_chroot=YES
+# 日志配置
+xferlog_enable=YES
+xferlog_std_format=YES
+xferlog_file=/var/log/vsftpd.log
+# 连接控制
+max_clients=10
+max_per_ip=2
+connect_from_port_20=YES
+# 被动模式配置（替换成你的服务器IP）
+pasv_enable=YES
+pasv_min_port=40000
+pasv_max_port=50000
+pasv_address=192.168.238.128
+# 安全配置
+pam_service_name=vsftpd
+userlist_enable=YES
+tcp_wrappers=YES
+# 消息提示
+ftpd_banner="Welcome to Company FTP Server"
+
+
+
+6、配置防火墙
+#开放FTP控制端口21
+sudo ufw allow 21/tcp
+#开放被动模式端口范围（40000-50000）
+sudo ufw allow 40000:50000/tcp
+#启用防火墙并重载规则
+sudo ufw enable
+sudo ufw reload
+
+7、启动服务
+#重启vsftpd应用配置
+sudo systemctl restart vsftpd
+#设置开机自启
+sudo systemctl enable vsftpd
+#检查服务状态（需显示active (running)）
+sudo systemctl status vsftpd
+
+sudo systemctl restart vsftpd
+
+
+
+对于客户端：
+在客户端桌面创建一个test.txt后：
+
+sudo apt update && sudo apt install lftp -y
+
+lftp ftp_finance@服务器IP地址 （就是服务器下ip a显示的地址）
+
+put test.txt
