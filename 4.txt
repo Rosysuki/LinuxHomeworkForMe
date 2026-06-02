@@ -1,0 +1,117 @@
+1、选中你的 Ubuntu 虚拟机 → 虚拟机 → 管理 → 克隆(链接克隆)
+2、分别选中两台虚拟机 → 右键 设置找到 网络适配器 → 网络连接选择：仅主机模式 (Host-Only)
+
+3、服务端：
+（1）
+sudo nano /etc/netplan/00-installer-config.yaml
+替换为：
+network:
+  ethernets:
+    ens33:
+      addresses: [192.168.10.10/24]
+  version: 2
+
+（2）
+sudo netplan apply
+ip a
+显示192.168.10.10 即正常。
+
+（3）
+sudo hostnamectl set-hostname shareserver
+bash
+
+（4）
+sudo nano /etc/hosts
+添加：
+192.168.10.10   shareserver
+192.168.10.11   china
+
+（5）
+sudo apt update
+sudo apt install nfs-kernel-server nfs-common -y
+
+（6）
+sudo mkdir -p /share
+sudo chmod 755 /share
+
+（7）
+sudo nano /etc/exports
+添加：
+/share  192.168.10.11(ro,sync,no_subtree_check)
+
+（8）
+# 重新导出共享
+sudo exportfs -rav
+# 重启 NFS 与 rpcbind
+sudo systemctl restart rpcbind nfs-kernel-server
+# 设置开机自启
+sudo systemctl enable rpcbind nfs-kernel-server
+
+（9）
+showmount -e localhost
+输出以下才正常：
+Export list for localhost:
+/share 192.168.10.11
+
+
+4、客户端
+（1）
+sudo nano /etc/netplan/00-installer-config.yaml
+替换为：
+network:
+  ethernets:
+    ens33:
+      addresses: [192.168.10.11/24]
+  version: 2
+
+（2）
+sudo netplan apply
+
+（3）
+sudo hostnamectl set-hostname china
+bash
+
+（4）
+sudo nano /etc/hosts
+添加：
+192.168.10.10   shareserver
+192.168.10.11   china
+
+（5）
+ping -c 4 shareserver
+
+（6）
+sudo apt update
+sudo apt install nfs-common -y
+
+（7）
+sudo mkdir -p /share1
+
+（8）
+sudo mount -t nfs shareserver:/share /share1
+
+（9）
+df -h | grep share1
+
+
+切换为服务端：
+sudo touch /share/test.txt
+
+切换为客户端：
+ls /share1
+
+
+客户端执行：
+sudo nano /etc/fstab
+添加：
+shareserver:/share  /share1  nfs  defaults,ro,_netdev  0  0
+
+客户端执行：
+sudo mount -a
+之后sudo reboot重启客户端
+
+之后客户端测试：
+df -h | grep share1
+ls /share1
+
+正常即可。
